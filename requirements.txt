@@ -1,5 +1,2 @@
 flask
 gunicorn
-numpy
-pillow
-tflite-runtime
