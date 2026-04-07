@@ -1,14 +1,17 @@
 from flask import Flask, request, jsonify
-import tensorflow as tf
 import numpy as np
 from PIL import Image
+import tflite_runtime.interpreter as tflite
 
 app = Flask(__name__)
 
-# Load trained model
-model = tf.keras.models.load_model("model.h5")
+# Load TFLite model
+interpreter = tflite.Interpreter(model_path="model.tflite")
+interpreter.allocate_tensors()
 
-# Classes (must match training order)
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
 classes = [
     "Avian Influenza",
     "Coccidiosis",
@@ -17,55 +20,60 @@ classes = [
     "Fowl Pox",
     "Healthy",
     "Infectious Bronchitis",
-    "Mareks",
+    "Marek's Disease",
     "Mycoplasma",
-    "Newcastle"
+    "Newcastle Disease"
 ]
+
+info = {
+    "Avian Influenza": {"symptoms": "Swelling, breathing issues, sudden death", "remedy": "Isolate birds and notify vet"},
+    "Coccidiosis": {"symptoms": "Bloody diarrhea, weakness", "remedy": "Use anticoccidial drugs"},
+    "Coryza": {"symptoms": "Swollen face, nasal discharge", "remedy": "Antibiotics"},
+    "Fowl Cholera": {"symptoms": "Loss of appetite, diarrhea", "remedy": "Vaccination"},
+    "Fowl Pox": {"symptoms": "Skin lesions", "remedy": "Vaccinate birds"},
+    "Healthy": {"symptoms": "No symptoms", "remedy": "No action needed"},
+    "Infectious Bronchitis": {"symptoms": "Coughing", "remedy": "Improve ventilation"},
+    "Marek's Disease": {"symptoms": "Paralysis", "remedy": "Vaccination"},
+    "Mycoplasma": {"symptoms": "Respiratory issues", "remedy": "Antibiotics"},
+    "Newcastle Disease": {"symptoms": "Twisted neck", "remedy": "Vaccinate birds"}
+}
 
 @app.route('/')
 def home():
-    return "FlockSafe AI Image API is running"
+    return "FlockSafe AI TFLite API is running"
 
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'file' not in request.files:
-        return jsonify({"error": "No image uploaded"})
+        return jsonify({"error": "No file uploaded"})
 
     file = request.files['file']
 
-    img = Image.open(file).convert('RGB')
-    img = img.resize((224, 224))
+    try:
+        img = Image.open(file).convert('RGB')
+        img = img.resize((224, 224))
+        img = np.array(img, dtype=np.float32) / 255.0
+        img = np.expand_dims(img, axis=0)
 
-    img_array = np.array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
+        interpreter.set_tensor(input_details[0]['index'], img)
+        interpreter.invoke()
+        output = interpreter.get_tensor(output_details[0]['index'])
 
-    prediction = model.predict(img_array)
-    class_index = np.argmax(prediction)
-    confidence = float(np.max(prediction))
+        index = int(np.argmax(output))
+        confidence = float(np.max(output))
+        disease = classes[index]
 
-    disease = classes[class_index]
+        disease_info = info.get(disease, {"symptoms": "Unknown", "remedy": "Consult expert"})
 
-    info = {
-        "Avian Influenza": ("Respiratory distress", "Isolate birds, contact vet"),
-        "Coccidiosis": ("Bloody diarrhea", "Use anticoccidial drugs"),
-        "Coryza": ("Swollen face, nasal discharge", "Antibiotics"),
-        "Fowl Cholera": ("Sudden death", "Vaccination, antibiotics"),
-        "Fowl Pox": ("Skin lesions", "Vaccination"),
-        "Healthy": ("No symptoms", "No treatment needed"),
-        "Infectious Bronchitis": ("Coughing, sneezing", "Supportive care"),
-        "Mareks": ("Paralysis", "Vaccination"),
-        "Mycoplasma": ("Respiratory issues", "Antibiotics"),
-        "Newcastle": ("Nervous signs", "Vaccination")
-    }
+        return jsonify({
+            "disease": disease,
+            "confidence": confidence,
+            "symptoms": disease_info["symptoms"],
+            "remedy": disease_info["remedy"]
+        })
 
-    symptoms, remedy = info.get(disease, ("Unknown", "Consult vet"))
-
-    return jsonify({
-        "disease": disease,
-        "confidence": confidence,
-        "symptoms": symptoms,
-        "remedy": remedy
-    })
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
