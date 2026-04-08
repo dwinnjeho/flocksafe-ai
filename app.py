@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# 🔥 FIX 413 ERROR
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
+# limit para hindi mag error
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  
 
 @app.route('/')
 def home():
@@ -11,18 +11,21 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-
-    # ✅ accept file
     if 'file' not in request.files:
-        return jsonify({"error": "No file received"})
+        return "No file received", 400
 
     file = request.files['file']
 
-    # 🔥 TEST RESULT
-    return jsonify({
-        "result": "Healthy Chicken",
-        "confidence": "98%"
-    })
+    if file.filename == '':
+        return "No selected file", 400
+
+    # save image
+    file.save("uploaded.jpg")
+
+    # SAMPLE AI RESPONSE (palitan mo ng AI mo)
+    result = "Detected: Chicken (Healthy)"
+
+    return result
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=5000)
