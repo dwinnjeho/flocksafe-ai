@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# 🔥 FIX 413 ERROR
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
+
 @app.route('/')
 def home():
     return "Server running"
@@ -9,16 +12,17 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
 
-    if 'file' in request.files:
-        file = request.files['file']
+    # ✅ accept file
+    if 'file' not in request.files:
+        return jsonify({"error": "No file received"})
 
-        return jsonify({
-            "result": "Healthy Chicken",
-            "confidence": "98%"
-        })
+    file = request.files['file']
 
-    else:
-        return jsonify({"error": "No file"}), 400
+    # 🔥 TEST RESULT
+    return jsonify({
+        "result": "Healthy Chicken",
+        "confidence": "98%"
+    })
 
 if __name__ == '__main__':
     app.run()
