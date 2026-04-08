@@ -4,23 +4,21 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "FlockSafe API is running"
+    return "Server running"
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
 
-    user_input = data.get("input", "")
+    if 'file' in request.files:
+        file = request.files['file']
 
-    if "danger" in user_input.lower():
-        result = "Warning: Unsafe"
+        return jsonify({
+            "result": "Healthy Chicken",
+            "confidence": "98%"
+        })
+
     else:
-        result = "Safe"
-
-    return jsonify({
-        "input": user_input,
-        "result": result
-    })
+        return jsonify({"error": "No file"}), 400
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+    app.run()
